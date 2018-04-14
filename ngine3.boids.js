@@ -2,28 +2,15 @@ Ngine3.Boids = {}
 Ngine3.Boids.Components = {}
 Ngine3.Boids.Systems = {}
 
-Ngine3.Boids.Components.Position = function Position (pos) {
-    pos = pos || [0, 0]
-    this.pos = pos
-    return this
-}
-Ngine3.Boids.Components.Position.prototype.name = 'position'
-
-Ngine3.Boids.Components.Physics = function Physics (params) {
-    params = params || {}
-    this.vel = params.vel || randV()
-    this.mass = params.mass || 1 + Math.random() * 4
-    this.hardness = params.hardness || Math.random()
-    return this
-}
-Ngine3.Boids.Components.Physics.prototype.name = 'physics'
-
 Ngine3.Boids.Components.Boid = function Boid (params) {
     params = params || {}
-    this.flockWeight = params.flockWeight || 5
-    this.alignWeight = params.alignWeight || 1
+    this.flockWeight = params.flockWeight || .05
+    this.alignWeight = params.alignWeight || .125
     this.avoidWeight = params.avoidWeight || 1
+    this.goalWeight = params.goalWeight || 0
+    this.sightRadius = params.sightRadius * params.sightRadius || 40 * 40
 }
+Ngine3.Boids.Components.Boid.prototype.name = 'boid'
 
 Ngine3.Boids.Components.Appearance = function Appearance (params) {
     params = params || {}
@@ -54,106 +41,93 @@ Ngine3.Boids.Systems.Render.run = function renderRun () {
         Ngine3.context.fill()
     }
 }
-Ngine3.Boids.Systems.Render.entityList={}
+Ngine3.Boids.Systems.Render.entityList = {}
 
-Ngine3.Boids.Systems.Physics = {}
-Ngine3.Boids.Systems.Physics.run = function physicsRun () {
-    var entities = Ngine3.Boids.Systems.Physics.entityList
-    var roomWidth = Ngine3.canvas.width;
-	var roomHeight = Ngine3.canvas.height;
-	for (var eID in entities) {
-        var curEntity = entities[eID]
-        var curPos = curEntity.components.position.pos
-        var curVel = curEntity.components.physics.vel
-        curPos = sumV(curPos, timesV(Ngine3.Boids.Systems.Physics.deltaT, curVel))
-		
-		
-        curVel = sumV(curVel, timesV(Ngine3.Boids.Systems.Physics.deltaT, [0, 0.01]))
-        
-		
-        if (curPos[0] < curEntity.components.appearance.size) {
-            curPos[0] = 2 * curEntity.components.appearance.size - curPos[0]
-            curVel[0] = -curVel[0]
+Ngine3.Boids.Systems.Boids = {}
+Ngine3.Boids.Systems.Boids.getNeighbors = function getNeighbors (entity) {
+    var entities = Ngine3.Boids.Systems.Boids.entityList
+    var neighbors = []
+    var curPos = entity.components.position.pos
+    for (var eID in entities) {
+        var distVec = diffV(entities[eID].components.position.pos, curPos)
+        if (dot(distVec, distVec) < entity.components.boid.sightRadius && eID != entity.id) {
+            neighbors.push(eID)
         }
-        if (curPos[0] > roomWidth - curEntity.components.appearance.size) {
-            curPos[0] = 2 * (roomWidth - curEntity.components.appearance.size) - curPos[0]
-            curVel[0] = -curVel[0]
-        }
-        if (curPos[1] < curEntity.components.appearance.size) {
-            curPos[1] = 2 * curEntity.components.appearance.size - curPos[1]
-            curVel[1] = -curVel[1]
-        }
-        if (curPos[1] > roomHeight - curEntity.components.appearance.size) {
-            curPos[1] = 2 * (roomHeight - curEntity.components.appearance.size) - curPos[1]
-            curVel[1] = -curVel[1]
-        }
-        
-        curEntity.components.position.pos = curPos
-        curEntity.components.physics.vel = curVel
     }
+    return neighbors
 }
-
-Ngine3.Boids.Systems.Physics.handleCollision = function physicsCollisionHandler (entityPair) {
-    var entity1 = Ngine3.Boids.Systems.Physics.entityList[entityPair.id1]
-    var entity2 = Ngine3.Boids.Systems.Physics.entityList[entityPair.id2]
+Ngine3.Boids.Systems.Boids.flockRule = function flockRule (entity, neighbors) {
+    var entities = Ngine3.Boids.Systems.Boids.entityList
+    var totalPos = neighbors.reduce((accPos, eID) => sumV(accPos, entities[eID].components.position.pos),[0,0])
+    var centerPos = timesV(1/neighbors.length,totalPos)
     
-    if (entity1 && entity2) {
-        var vel1 = entity1.components.physics.vel
-        var vel2 = entity2.components.physics.vel
-        var normal = normV(diffV(entity2.components.position.pos, entity1.components.position.pos))
-        var mass1 = entity1.components.physics.mass
-        var mass2 = entity2.components.physics.mass
-        var elasticity = Math.min(1, entity1.components.physics.hardness * entity2.components.physics.hardness)
-
-        var normalVel1 = projectV(vel1, normal)
-        var normalVel2 = projectV(vel2, normal)
-        
-        if (dot(diffV(normalVel1,normalVel2),normal) < 0) return
-        
-        var tangentVel1 = diffV(vel1, normalVel1)
-        var tangentVel2 = diffV(vel2, normalVel2)
-
-        var newNormalVel1 = timesV(1/(mass1+mass2), sumV( sumV( timesV(mass1, normalVel1), timesV(mass2, normalVel2)), timesV(mass2 * elasticity, diffV(normalVel2, normalVel1))))
-        var newNormalVel2 = timesV(1/(mass1+mass2), sumV( sumV( timesV(mass1, normalVel1), timesV(mass2, normalVel2)), timesV(mass1 * elasticity, diffV(normalVel1, normalVel2))))
-        //var newNormalVel1 = timesV(1/(mass1+mass2), sumV( timesV(mass1 - mass2, normalVel1), timesV(2 * mass2, normalVel2)))
-        //var newNormalVel2 = timesV(1/(mass1+mass2), sumV( timesV(mass2 - mass1, normalVel2), timesV(2 * mass1, normalVel1)))
-
-        entity1.components.physics.vel = sumV(newNormalVel1, tangentVel1)
-        entity2.components.physics.vel = sumV(newNormalVel2, tangentVel2)
-    }
+    var flockDir = (diffV(centerPos,entity.components.position.pos))
+    var flockForce = timesV(entity.components.boid.flockWeight,flockDir)
+    
+    return flockForce
 }
-Ngine3.Boids.Systems.Physics.deltaT = 1
-Ngine3.Boids.Systems.Physics.entityList = {}
-
-
-Ngine3.Boids.Systems.Collision = {}
-Ngine3.Boids.Systems.Collision.run = function collisionRun () {
-    var entities = Ngine3.Boids.Systems.Collision.entityList
-    var checkedIDs = {}
-    var collisionPairs = []
+Ngine3.Boids.Systems.Boids.alignRule = function alignRule (entity, neighbors) {
+    var entities = Ngine3.Boids.Systems.Boids.entityList
+    var totalVel = neighbors.reduce((accVel, eID) => sumV(accVel, entities[eID].components.motion.vel), [0,0])
+    var avgVel = timesV(1/neighbors.length,totalVel)
+    
+    var alignDir = avgVel //diffV(avgVel,entity.components.motion.vel)
+    var alignForce = timesV(entity.components.boid.alignWeight,alignDir)
+    
+    return alignForce
+}
+Ngine3.Boids.Systems.Boids.avoidRule = function avoidRule (entity, neighbors) {
+    var entities = Ngine3.Boids.Systems.Boids.entityList
+    var totalPush = [0, 0]
+    for (var eID in neighbors) {
+        var otherEntity = entities[neighbors[eID]]
+        var distVec = diffV(entity.components.position.pos, otherEntity.components.position.pos)
+        var dist = lengthV(distVec)
+        if (dist < 3 * entity.components.appearance.size) {
+            var magAcc = 3 * entity.components.appearance.size - dist
+            totalPush = sumV(totalPush, timesV(magAcc, normV(distVec)))
+        }
+    }
+    
+    
+    var avoidForce = timesV(entity.components.boid.avoidWeight,totalPush)
+    
+    return avoidForce
+}
+Ngine3.Boids.Systems.Boids.boundRule = function boundRule (entity) {
+    var roomWidth = Ngine3.canvas.width
+	var roomHeight = Ngine3.canvas.height
+    var pos = entity.components.position.pos
+    var retVel = [0,0];
+    if (pos[0] < 10){
+        retVel[0] = 10;
+    }
+    else if (pos[0] > (roomWidth - 10)){
+        retVel[0] = -10;
+    }
+    if(pos[1] < 10){
+        retVel[1] = 10;
+    }
+    else if(pos[1] > (roomHeight - 10)){
+        retVel[1] = -10;
+    }
+    return retVel;
+}
+Ngine3.Boids.Systems.Boids.run = function boidsRun () {
+    var entities = Ngine3.Boids.Systems.Boids.entityList
+    
     for (var eID in entities) {
         var curEntity = entities[eID]
-        checkedIDs[eID] = true
-        for (var eID2 in entities) {
-            if (!checkedIDs[eID2]) {
-                var entity2 = entities[eID2]
-                var distVec = diffV(curEntity.components.position.pos, entity2.components.position.pos)
-                var sizes = curEntity.components.appearance.size + entity2.components.appearance.size
-                if (dot(distVec, distVec) < sizes * sizes) {
-                    collisionPairs.push({id1: eID, id2: eID2})
-                }
-            }
+        var neighbors = this.getNeighbors(curEntity)
+        var netForce = this.boundRule(curEntity)
+        if (neighbors.length > 0) {
+            netForce = sumV(netForce, this.alignRule(curEntity, neighbors))
+            netForce = sumV(netForce, this.avoidRule(curEntity, neighbors))
+            netForce = sumV(netForce, this.flockRule(curEntity, neighbors))     
         }
+        //curEntity.components.inertia.force = netForce
+        curEntity.components.motion.vel = sumV(curEntity.components.motion.vel, netForce)
     }
     
-    for (var i in collisionPairs) {
-        Ngine3.Boids.Systems.Collision.triggerEvent(collisionPairs[i])
-    }
 }
-Ngine3.Boids.Systems.Collision.triggerEvent = function collisionEvent (entityPair) {
-    for (var i in Ngine3.Boids.Systems.Collision.handlers) {
-        Ngine3.Boids.Systems.Collision.handlers[i](entityPair)
-    }
-}
-Ngine3.Boids.Systems.Collision.handlers = []
-Ngine3.Boids.Systems.Collision.entityList = {}
+Ngine3.Boids.Systems.Boids.entityList = {}

@@ -2,10 +2,56 @@
 <head>
 <script type="text/javascript" src="mathKit.js"></script>
 <script type="text/javascript" src="ngine3.core.js"></script>
+<script type="text/javascript" src="ngine3.physics.js"></script>
+<script type="text/javascript" src="ngine3.boids.js"></script>
 </head>
 <body>
-<canvas id="c1" width="200" height="200" ></canvas>
+<canvas id="c1" width="600" height="600" ></canvas>
 <script>
-console.log(Ngine3)
+    Ngine3.canvas = document.getElementById( 'c1' )
+    Ngine3.context = Ngine3.canvas.getContext('2d')
+    
+    Ngine3.entities = {}
+    for (var i = 0; i < 60; i++) {
+        var entity = new Ngine3.Entity()
+        
+        entity.addComponent( new Ngine3.Physics.Components.Position( [ Ngine3.canvas.width * Math.random(), Ngine3.canvas.height * Math.random() ] ) )
+        entity.addComponent( new Ngine3.Physics.Components.Motion() )
+        entity.addComponent( new Ngine3.Physics.Components.Inertia({force: [0,0], mass: 1}) )
+        entity.addComponent( new Ngine3.Boids.Components.Appearance({size: 4}) )
+        entity.addComponent( new Ngine3.Boids.Components.Boid() )
+        
+        Ngine3.entities[entity.id] = entity
+        Ngine3.Physics.Systems.Physics.entityList[entity.id] = entity
+        Ngine3.Boids.Systems.Render.entityList[entity.id] = entity
+        Ngine3.Boids.Systems.Boids.entityList[entity.id] = entity
+    }
+    
+    var systems = [     
+        Ngine3.Boids.Systems.Boids,
+        Ngine3.Physics.Systems.Physics,
+        Ngine3.Boids.Systems.Render
+    ]
+    
+    function gameLoop () {
+        for (var i in systems) {
+            systems[i].run()
+        }
+    }
+    
+    var UI = new Ngine3.Interface(Ngine3.canvas)
+    UI.keyDown=function(e){
+        var xy = UI.getMouseXY(e);
+        if(e.keyCode==76){
+            for(var eID in Ngine3.entities){
+                Ngine3.entities[eID].components.boid.flockWeight *= -1
+            }
+        }
+
+    }
+    
+    Ngine3.Physics.Systems.Physics.limitVel = 3
+    Ngine3.Physics.Systems.Physics.boundRoom = false
+    setInterval( gameLoop, 16 )
 </script>
 </body>
