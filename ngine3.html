@@ -11,17 +11,20 @@
     Ngine3.canvas = document.getElementById( 'c1' )
     Ngine3.context = Ngine3.canvas.getContext('2d')
     
-    Ngine3.entities = {}
-    for (var i = 0; i < 60; i++) {
-        var entity = new Ngine3.Entity()
+	function Boid () {
+		var entity = new Ngine3.Entity()
         
         entity.addComponent( new Ngine3.Physics.Components.Position( [ Ngine3.canvas.width * Math.random(), Ngine3.canvas.height * Math.random() ] ) )
-        entity.addComponent( new Ngine3.Physics.Components.Motion() )
+        entity.addComponent( new Ngine3.Physics.Components.Motion({limit: 3}) )
         entity.addComponent( new Ngine3.Physics.Components.Inertia({force: [0,0], mass: 1}) )
         entity.addComponent( new Ngine3.Boids.Components.Appearance({size: 4}) )
         entity.addComponent( new Ngine3.Boids.Components.Boid() )
-        
-        Ngine3.entities[entity.id] = entity
+		return entity
+	}
+	
+    Ngine3.entities = {}
+    for (var i = 0; i < 60; i++) {
+        var entity = Boid()
         Ngine3.Physics.Systems.Physics.entityList[entity.id] = entity
         Ngine3.Boids.Systems.Render.entityList[entity.id] = entity
         Ngine3.Boids.Systems.Boids.entityList[entity.id] = entity

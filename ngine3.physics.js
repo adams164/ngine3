@@ -12,6 +12,7 @@ Ngine3.Physics.Components.Position.prototype.name = 'position'
 Ngine3.Physics.Components.Motion = function Motion (params) {
     params = params || {}
     this.vel = params.vel || randV()
+	this.limit = params.limit || 0
     return this
 }
 Ngine3.Physics.Components.Motion.prototype.name = 'motion'
@@ -37,18 +38,14 @@ Ngine3.Physics.Systems.Physics.run = function physicsRun () {
         
         var curAccel = timesV(1/ curEntity.components.inertia.mass, curEntity.components.inertia.force)
         
-        if (this.limitVel && lengthV(curVel) > this.limitVel) {
-            curVel = timesV(this.limitVel, normV(curVel))
+		curVel = sumV(curVel, timesV(this.deltaT, curAccel))
+		
+        if (curEntity.components.motion.limit && lengthV(curVel) > curEntity.components.motion.limit) {
+            curVel = timesV(curEntity.components.motion.limit, normV(curVel))
         }
         
         curPos = sumV(curPos, timesV(this.deltaT, curVel))
 		
-		
-        curVel = sumV(curVel, timesV(this.deltaT, curAccel))
-		
-        if (this.limitVel && lengthV(curVel) > this.limitVel) {
-            curVel = timesV(this.limitVel, normV(curVel))
-        }
         
         if (this.boundRoom) {
             if (curPos[0] < curEntity.components.appearance.size) {
@@ -104,6 +101,5 @@ Ngine3.Physics.Systems.Physics.handleCollision = function physicsCollisionHandle
     }
 }
 Ngine3.Physics.Systems.Physics.deltaT = 1
-Ngine3.Physics.Systems.Physics.limitVel = 0
 Ngine3.Physics.Systems.Physics.boundRoom = true
 Ngine3.Physics.Systems.Physics.entityList = {}

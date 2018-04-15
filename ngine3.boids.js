@@ -125,8 +125,8 @@ Ngine3.Boids.Systems.Boids.run = function boidsRun () {
             netForce = sumV(netForce, this.avoidRule(curEntity, neighbors))
             netForce = sumV(netForce, this.flockRule(curEntity, neighbors))     
         }
-        //curEntity.components.inertia.force = netForce
-        curEntity.components.motion.vel = sumV(curEntity.components.motion.vel, netForce)
+        curEntity.components.inertia.force = netForce
+        //curEntity.components.motion.vel = sumV(curEntity.components.motion.vel, netForce)
     }
     
 }
